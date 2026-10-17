@@ -6,7 +6,17 @@ st.set_page_config(page_title="Asuntomarkkina-analysaattori", page_icon="🏢")
 st.title("🏢 Asuntomarkkina-analysaattori (5v ennuste)")
 st.write("Tämä työkalu yhdistää markkinadatan ja tekoälyn arvioidakseen asunnon arvonkehitystä valitussa kaupunginosassa.")
 
-api_key = st.text_input("Syötä Gemini API-avain:", type="password")
+# Tarkistetaan löytyykö API-avain valmiina Streamlit Cloudin asetuksista (Secrets)
+api_key = ""
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
+
+# Jos avainta ei ole pilvessä, näytetään tekstikenttä
+if not api_key:
+    api_key = st.text_input("Syötä Gemini API-avain:", type="password")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -21,27 +31,27 @@ if st.button("Laske 5 vuoden arvoennuste"):
         st.warning("Syötä API-avain ja kaupunginosa.")
     else:
         with st.spinner("Tekoäly analysoi alueen hintakehitystä ja vetovoimatekijöitä..."):
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            
-            prompt = f"""
-            Olet kokenut kiinteistöanalyytikko ja asuntosijoittaja Suomessa.
-            Tee 5 vuoden ennuste asunnon arvonkehityksestä seuraavilla tiedoilla:
-            - Kaupunki: {kaupunki}
-            - Kaupunginosa: {kaupunginosa}
-            - Asunnon nykyinen hinta: {nykyinen_hinta} €
-            - Pinta-ala: {pinta_ala} m²
-
-            Vastaa selkeästi ja ammattimaisesti ranskalaisilla viivoilla:
-            1. Arvioitu keskimääräinen vuosittainen arvonnousu (%) tällä alueella ja miksi.
-            2. Asunnon ennustettu arvo 5 vuoden kuluttua (tee koronkorkolaskelma).
-            3. Alueen suurimmat vetovoimatekijät, jotka tukevat hintakehitystä (esim. hankkeet, palvelut, liikenneyhteydet).
-            """
-            
             try:
+                genai.configure(api_key=api_key.strip())
+                model = genai.GenerativeModel('models/gemini-3.8-flash')
+                
+                prompt = f"""
+                Olet kokenut kiinteistöanalyytikko ja asuntosijoittaja Suomessa.
+                Tee 5 vuoden ennuste asunnon arvonkehityksestä seuraavilla tiedoilla:
+                - Kaupunki: {kaupunki}
+                - Kaupunginosa: {kaupunginosa}
+                - Asunnon nykyinen hinta: {nykyinen_hinta} €
+                - Pinta-ala: {pinta_ala} m² (Neliöhinta nyt: {round(nykyinen_hinta / pinta_ala)} €/m²)
+
+                Vastaa selkeästi ja ammattimaisesti ranskalaisilla viivoilla:
+                1. **Arvioitu vuosittainen arvonnousu (%):** Anna realistinen prosenttiarvio tälle alueelle ja perustele se lyhyesti.
+                2. **Ennustettu arvo 5 vuoden kuluttua (€):** Laske tarkka arvo koronkorkoa käyttäen sekä kokonaishinnalle että neliöhinnalle.
+                3. **Alueen keskeiset vetovoimatekijät:** Nimeä 3 konkreettista tekijää (esim. kaavoitus, liikenneyhteydet, palvelut tai demografia), jotka ajavat hintakehitystä.
+                """
+                
                 response = model.generate_content(prompt)
                 st.success("Analyysi valmis!")
                 st.markdown(response.text)
                 
             except Exception as e:
-                st.error(f"Virhe: Varmista API-avain. ({e})")
+                st.error(f"Tarkka virhekoodi: {e}")
